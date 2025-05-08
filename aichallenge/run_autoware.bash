@@ -1,5 +1,7 @@
 #!/bin/bash
 
+trap '/aichallenge/pkill_all.bash' EXIT
+
 mode="${1}"
 
 case "${mode}" in
