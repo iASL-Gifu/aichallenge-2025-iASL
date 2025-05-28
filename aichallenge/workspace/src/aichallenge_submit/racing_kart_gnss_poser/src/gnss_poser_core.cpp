@@ -60,15 +60,15 @@ GNSSPoser::GNSSPoser(const rclcpp::NodeOptions & node_options)
     "gnss_pose_cov", rclcpp::QoS{1});
   fixed_pub_ = create_publisher<tier4_debug_msgs::msg::BoolStamped>("gnss_fixed", rclcpp::QoS{1});
 
-  gear_status_sub_ = create_subscription<racing_kart_msgs::msg::VcuStatus>(
-    "/racing_kart/vcu/status", rclcpp::QoS{1},
-    [this](const racing_kart_msgs::msg::VcuStatus::SharedPtr msg)
+  gear_report_sub_ = create_subscription<autoware_auto_vehicle_msgs::msg::GearReport>(
+    "/vehicle/status/gear_report", rclcpp::QoS{1},
+    [this](const autoware_auto_vehicle_msgs::msg::GearReport::SharedPtr msg)
     {
-      if (msg->gear == 'R')
+      if (msg->report == autoware_auto_vehicle_msgs::msg::GearReport::DRIVE)
         gear_ = 'R';
-      else if (msg->gear == 'N')
+      else if (msg->report == autoware_auto_vehicle_msgs::msg::GearReport::NONE)
         gear_ = 'N';
-      else if (msg->gear == 'D')
+      else if (msg->report == autoware_auto_vehicle_msgs::msg::GearReport::REVERSE)
         gear_ = 'D';
     });
 }

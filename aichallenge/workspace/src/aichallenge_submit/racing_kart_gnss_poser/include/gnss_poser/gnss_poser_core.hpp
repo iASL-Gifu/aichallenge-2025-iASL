@@ -20,8 +20,8 @@
 #include <rclcpp/rclcpp.hpp>
 #include <tier4_autoware_utils/tier4_autoware_utils.hpp>
 
-#include "racing_kart_msgs/msg/vcu_status.hpp"
 #include <autoware_sensing_msgs/msg/gnss_ins_orientation_stamped.hpp>
+#include <autoware_auto_vehicle_msgs/msg/gear_report.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
@@ -83,7 +83,7 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr nav_sat_fix_sub_;
   rclcpp::Subscription<autoware_sensing_msgs::msg::GnssInsOrientationStamped>::SharedPtr
     autoware_orientation_sub_;
-  rclcpp::Subscription<racing_kart_msgs::msg::VcuStatus>::SharedPtr gear_status_sub_;
+  rclcpp::Subscription<autoware_auto_vehicle_msgs::msg::GearReport>::SharedPtr gear_report_sub_;
 
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_cov_pub_;
