@@ -62,7 +62,7 @@
   </group>
 
     <!-- Localization -->
-  <let name="pose_additional_delay_var" value="0.5" />
+  <let name="pose_additional_delay_var" value="0.3" />
   <group>
     <push-ros-namespace namespace="localization"/>
     <include file="$(find-pkg-share gyro_odometer)/launch/gyro_odometer.launch.xml">
@@ -76,7 +76,7 @@
 
     <include file="$(find-pkg-share ekf_localizer)/launch/ekf_localizer.launch.xml">
       <arg name="enable_yaw_bias_estimation" value="false"/>
-      <arg name="tf_rate" value="50.0"/>
+      <arg name="tf_rate" value="30.0"/>
       <arg name="twist_smoothing_steps" value="1"/>
       <arg name="pose_smoothing_steps" value="1"/>
       <arg name="input_initial_pose_name" value="/localization/initial_pose3d"/>
@@ -119,7 +119,7 @@
       <!-- Customizable -->
       <node pkg="simple_trajectory_generator" exec="simple_trajectory_generator_node" name="simple_trajectory_generator" output="screen">
             <param name="csv_path" value="$(find-pkg-share simple_trajectory_generator)/data/raceline_awsim_30km.csv"/>
-            <param name="z" value="1.0"/>
+            <param name="z" value="6.5"/>
       </node>
       
     </group>
