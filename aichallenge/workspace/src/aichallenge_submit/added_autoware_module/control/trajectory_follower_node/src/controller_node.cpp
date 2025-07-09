@@ -60,18 +60,16 @@ Controller::Controller(const rclcpp::NodeOptions & node_options) : Node("control
     default:
       throw std::domain_error("[LongitudinalController] invalid algorithm");
   }
-
+  const auto qos_sub_trajectory = rclcpp::QoS(1).best_effort();
   sub_ref_path_ = create_subscription<autoware_auto_planning_msgs::msg::Trajectory>(
-    "~/input/reference_trajectory", rclcpp::QoS{1}, std::bind(&Controller::onTrajectory, this, _1));
+    "~/input/reference_trajectory", qos_sub_trajectory, std::bind(&Controller::onTrajectory, this, _1));
+  
   sub_steering_ = create_subscription<autoware_auto_vehicle_msgs::msg::SteeringReport>(
     "~/input/current_steering", rclcpp::QoS{1}, std::bind(&Controller::onSteering, this, _1));
   sub_odometry_ = create_subscription<nav_msgs::msg::Odometry>(
     "~/input/current_odometry", rclcpp::QoS{1}, std::bind(&Controller::onOdometry, this, _1));
   sub_accel_ = create_subscription<geometry_msgs::msg::AccelWithCovarianceStamped>(
     "~/input/current_accel", rclcpp::QoS{1}, std::bind(&Controller::onAccel, this, _1));
-  sub_operation_mode_ = create_subscription<OperationModeState>(
-    "~/input/current_operation_mode", rclcpp::QoS{1},
-    [this](const OperationModeState::SharedPtr msg) { current_operation_mode_ptr_ = msg; });
   control_cmd_pub_ = create_publisher<autoware_auto_control_msgs::msg::AckermannControlCommand>(
     "~/output/control_cmd", rclcpp::QoS{1}.transient_local());
   debug_marker_pub_ =
@@ -166,17 +164,14 @@ boost::optional<trajectory_follower::InputData> Controller::createInputData(
     return {};
   }
 
-  if (!current_operation_mode_ptr_) {
-    RCLCPP_INFO_THROTTLE(get_logger(), clock, 5000, "Waiting for current operation mode.");
-    return {};
-  }
-
+  
   trajectory_follower::InputData input_data;
   input_data.current_trajectory = *current_trajectory_ptr_;
   input_data.current_odometry = *current_odometry_ptr_;
   input_data.current_steering = *current_steering_ptr_;
   input_data.current_accel = *current_accel_ptr_;
-  input_data.current_operation_mode = *current_operation_mode_ptr_;
+  // 常に自動運転モード(AUTONOMOUS)をセットする
+  input_data.current_operation_mode.mode = OperationModeState::AUTONOMOUS;
 
   return input_data;
 }
