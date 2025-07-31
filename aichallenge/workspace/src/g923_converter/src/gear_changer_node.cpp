@@ -2,7 +2,6 @@
 #include <std_msgs/msg/int32.hpp>
 #include "autoware_auto_vehicle_msgs/msg/gear_command.hpp" 
 
-// ノード名を分かりやすく変更
 class GearCommandController : public rclcpp::Node
 {
 public:
