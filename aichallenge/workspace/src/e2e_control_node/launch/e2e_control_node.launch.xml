@@ -1,16 +1,14 @@
 <launch>
-  
-  <arg name="bag_manager_param"  default="$(find-pkg-share bag_manager_py)/config/bag_manager.param.yaml"/>
-  <!-- bag_manager node -->
-  <node pkg="bag_manager_py" 
-        exec="bag_manager_node"
-        name="bag_manager_node"
+
+  <arg name="e2e_control_node_param"  default="$(find-pkg-share e2e_control_node)/config/e2e_control_node.param.yaml"/>
+  <!-- e2e_control_node -->
+  <node pkg="e2e_control_node" 
+        exec="e2e_control_node"
+        name="e2e_control_node"
         output="screen">
 
     <!-- パラメータ -->
-    <param from="$(var bag_manager_param)"/>
-    <!-- トピックのremap -->
-    <remap from="/rosbag2_recorder/trigger" to="/rosbag2_recorder/trigger"/>
+    <param from="$(var e2e_control_node_param)"/>
   </node>
 
 
