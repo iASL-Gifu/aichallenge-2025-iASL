@@ -26,7 +26,7 @@ public:
         open_device();
         
         timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(100),  // 100msごとに実行
+            std::chrono::milliseconds(10),  // 10msごとに実行
             std::bind(&HandleInputPublisher::publish_latest_state, this)
         );
     }
