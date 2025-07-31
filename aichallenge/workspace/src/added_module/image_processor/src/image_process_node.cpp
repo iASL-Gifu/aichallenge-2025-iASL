@@ -1,4 +1,4 @@
-#include "image_processor/image_process_node.hpp"
+#include "image_process_node.hpp"
 
 ImageProcessNode::ImageProcessNode() : Node("image_process_node")
 {

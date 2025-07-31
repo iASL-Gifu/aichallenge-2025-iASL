@@ -8,10 +8,10 @@
 #include <opencv2/opencv.hpp>
 #include <mutex>
 
-class ImageResizerNode : public rclcpp::Node
+class ImageProcessNode : public rclcpp::Node
 {
 public:
-  ImageResizerNode();
+  ImageProcessNode();
 
 private:
   // コールバック関数
