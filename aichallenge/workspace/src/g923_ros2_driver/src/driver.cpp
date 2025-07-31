@@ -97,17 +97,10 @@ private:
     {
         // evtestで確認したボタンコードとJoyメッセージのインデックスを対応付ける
         button_map_ = {
-            {BTN_SOUTH,  0}, // A (Cross on PS)
-            {BTN_EAST,   1}, // B (Circle on PS)
-            {BTN_WEST,   2}, // X (Square on PS)
-            {BTN_NORTH,  3}, // Y (Triangle on PS)
-            {BTN_TL,     4}, // L1
-            {BTN_TR,     5}, // R1
-            {BTN_SELECT, 6}, // Share
-            {BTN_START,  7}, // Options
-            {BTN_MODE,   8}, // PS Button
-            {BTN_THUMBL, 9}, // L3
-            {BTN_THUMBR, 10} // R3
+            {288,        0}, // Cross (✕) button, evtestでBTN_TRIGGER(288)と確認
+            {290,        1}, // Circle (○) button, evtestでBTN_THUMB2(290)と確認
+            {289,        2}, // Square (☐) button, evtestでBTN_THUMB(289)と確認
+            {291,        3}, // Triangle (▲) button, evtestでBTN_TOP(291)と確認
         };
     }
 
