@@ -1,0 +1,9 @@
+rosbags
+numpy 
+pandas 
+h5py 
+hdf5plugin
+opencv-python 
+
+torch
+torchvision
