@@ -1,0 +1,4 @@
+/**:
+  ros__parameters:
+    accel_scale: 1.0
+    brake_scale: 1.0

@@ -1,5 +1,0 @@
-/**:
-  ros__parameters:
-    output_dir: "/record"
-    all_topics: false
-    topics: ['/control/command/control_cmd', '/sensing/camera/image_raw']
