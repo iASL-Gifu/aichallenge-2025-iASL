@@ -56,7 +56,7 @@ def extract_and_sync_data(bag_path_str: str, h5_path_str: str):
     print(f"  -> Saving data to {h5_path_str}...")
     with h5py.File(h5_path_str, 'w') as hf:
         num_samples, img_shape = len(synced_df), synced_df['image'].iloc[0].shape
-        blosc_opts = hdf5plugin.Blosc(cname='lz4', clevel=5, shuffle=hdf5plugin.Blosc.SHUFFLE)
+        blosc_opts = hdf5plugin.Blosc(cname='lz4', clevel=1, shuffle=hdf5plugin.Blosc.SHUFFLE)
         dset_images = hf.create_dataset('images', (num_samples, *img_shape), dtype=np.uint8, **blosc_opts)
         dset_commands = hf.create_dataset('commands', (num_samples, 2), dtype=np.float32, **blosc_opts)
         for i, row in synced_df.iterrows():

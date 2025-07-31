@@ -2,11 +2,11 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast  
 import argparse
 import yaml
 import os
-from tqdm import tqdm  
+from tqdm import tqdm
 
 from src.data.dataset import DrivingDataset
 from src.data.transform import get_transforms
@@ -17,8 +17,6 @@ def train_one_epoch(model, ema_model, dataloader, criterion, optimizer, device, 
     """1エポック分の学習を行う関数"""
     model.train()
     running_loss = 0.0
-    
-    # ★ ループをtqdmでラップし、説明（description）を追加
     pbar = tqdm(dataloader, desc=f"Epoch {epoch_num} Training")
     
     for batch in pbar:
@@ -26,7 +24,8 @@ def train_one_epoch(model, ema_model, dataloader, criterion, optimizer, device, 
         true_commands = batch['command'].to(device)
         optimizer.zero_grad(set_to_none=True)
         
-        with autocast():
+        # ★ 変更点 2: 使用デバイスを明記
+        with autocast(device_type=device.type):
             outputs = model(images)
             loss_accel = criterion(outputs['accel'], true_commands[:, 0])
             loss_steer = criterion(outputs['steer'], true_commands[:, 1])
@@ -39,8 +38,6 @@ def train_one_epoch(model, ema_model, dataloader, criterion, optimizer, device, 
         
         loss_item = total_loss.item()
         running_loss += loss_item
-        
-        # ★ プログレスバーに現在の損失を表示
         pbar.set_postfix({'loss': loss_item})
         
     epoch_loss = running_loss / len(dataloader)
@@ -66,11 +63,12 @@ def main(config):
     ema_model = ModelEMA(model, decay=config['model']['ema_decay'])
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=config['training']['learning_rate'])
-    scaler = GradScaler()
+    
+    # ★ 変更点 3: GradScalerを推奨される方法で初期化
+    scaler = GradScaler(enabled=torch.cuda.is_available())
 
     print("\n--- Starting Training ---")
     for epoch in range(config['training']['epochs']):
-        # ★ エポック番号を渡すように変更
         epoch_loss = train_one_epoch(model, ema_model, train_dataloader, criterion, optimizer, device, scaler, epoch + 1)
         print(f"\nEpoch {epoch+1}/{config['training']['epochs']} finished. Average Loss: {epoch_loss:.4f}")
 
