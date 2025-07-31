@@ -13,9 +13,26 @@ IMAGE_TOPIC = '/sensing/camera/image_raw'
 CONTROL_TOPIC = '/awsim/control_cmd'
 # ----------------------------------
 
+def get_blosc_opts(complevel=1, complib='blosc:zstd', shuffle='byte'):
+    
+    # shuffleの値を文字列から整数にマッピング
+    shuffle_map = {'bit': 2, 'byte': 1, 'none': 0}
+    shuffle_val = shuffle_map.get(shuffle, 0)
+    
+    # 圧縮ライブラリの文字列を整数にマッピング
+    compressors = ['blosclz', 'lz4', 'lz4hc', 'snappy', 'zlib', 'zstd']
+    complib_val = ['blosc:' + c for c in compressors].index(complib)
+    
+    # h5pyに渡す設定辞書を作成
+    args = {
+        'compression': 32001,  # BloscのフィルターID
+        'compression_opts': (0, 0, 0, 0, complevel, shuffle_val, complib_val),
+        'chunks': True # 圧縮にはチャンク化が必須
+    }
+    return args
+
 def extract_and_sync_data(bag_path_str: str, h5_path_str: str):
     """
-    【この関数は変更なし】
     単一のrosbagからデータを抽出し、同期してHDF5ファイルに保存する関数
     """
     bag_path = Path(bag_path_str)
@@ -56,7 +73,11 @@ def extract_and_sync_data(bag_path_str: str, h5_path_str: str):
     print(f"  -> Saving data to {h5_path_str}...")
     with h5py.File(h5_path_str, 'w') as hf:
         num_samples, img_shape = len(synced_df), synced_df['image'].iloc[0].shape
-        blosc_opts = hdf5plugin.Blosc(cname='lz4', clevel=1, shuffle=hdf5plugin.Blosc.SHUFFLE)
+        
+        # ★変更点: 新しいヘルパー関数を呼び出して圧縮設定を取得
+        # 要件に合わせて、zstd, level 1, byte shuffleを指定
+        blosc_opts = get_blosc_opts(complevel=1, complib='blosc:zstd', shuffle='byte')
+        
         dset_images = hf.create_dataset('images', (num_samples, *img_shape), dtype=np.uint8, **blosc_opts)
         dset_commands = hf.create_dataset('commands', (num_samples, 2), dtype=np.float32, **blosc_opts)
         for i, row in synced_df.iterrows():
@@ -66,8 +87,7 @@ def extract_and_sync_data(bag_path_str: str, h5_path_str: str):
 
 def find_rosbag_directories(root_search_path: Path) -> list[Path]:
     """
-    ★新規追加★
-    指定されたパス以下を再帰的に探索し、rosbagのディレクトリ（metadata.yamlを含む）のリストを返す関数
+    指定されたパス以下を再帰的に探索し、rosbagのディレクトリのリストを返す関数
     """
     bag_directories = []
     print(f"Searching for rosbags in '{root_search_path}'...")
@@ -79,7 +99,6 @@ def find_rosbag_directories(root_search_path: Path) -> list[Path]:
     return bag_directories
 
 if __name__ == '__main__':
-    # ★変更点: コマンドライン引数の定義を更新
     parser = argparse.ArgumentParser(description='Find all rosbags in a directory and process them into HDF5 files.')
     parser.add_argument('search_dir', type=str, help='Root directory to search for rosbags.')
     parser.add_argument('output_dir', type=str, help='Directory to save the output HDF5 files.')
@@ -88,19 +107,15 @@ if __name__ == '__main__':
     root_path = Path(args.search_dir)
     output_root_path = Path(args.output_dir)
 
-    # 出力ディレクトリが存在しない場合は作成
     output_root_path.mkdir(parents=True, exist_ok=True)
 
-    # rosbagディレクトリを全て見つける
     rosbag_paths = find_rosbag_directories(root_path)
 
     if not rosbag_paths:
         print("No rosbags were found.")
     else:
         print(f"\n--- Found {len(rosbag_paths)} rosbag(s). Starting processing. ---")
-        # 見つかった各rosbagに対して処理を実行
         for i, bag_path in enumerate(rosbag_paths):
-            # rosbagのフォルダ名から出力ファイル名を生成
             output_filename = bag_path.name + ".h5"
             output_filepath = output_root_path / output_filename
             
