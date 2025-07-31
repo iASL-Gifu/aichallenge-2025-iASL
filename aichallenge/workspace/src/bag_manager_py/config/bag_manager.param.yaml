@@ -1,5 +1,5 @@
 /**:
   ros__parameters:
-    output_dir: "/record"
+    output_dir: "/aichallenge/record"
     all_topics: false
     topics: ['/awsim/control_cmd', '/vehicle/status/velocity_status', '/sensing/camera/image_raw']
