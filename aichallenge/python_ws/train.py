@@ -24,7 +24,6 @@ def train_one_epoch(model, ema_model, dataloader, criterion, optimizer, device, 
         true_commands = batch['command'].to(device)
         optimizer.zero_grad(set_to_none=True)
         
-        # ★ 変更点 2: 使用デバイスを明記
         with autocast(device_type=device.type):
             outputs = model(images)
             loss_accel = criterion(outputs['accel'], true_commands[:, 0])
@@ -61,10 +60,9 @@ def main(config):
 
     model = DrivingModel(model_name=config['model']['name']).to(device)
     ema_model = ModelEMA(model, decay=config['model']['ema_decay'])
-    criterion = nn.MSELoss()
+    criterion = nn.SmoothL1Loss()
     optimizer = optim.Adam(model.parameters(), lr=config['training']['learning_rate'])
     
-    # ★ 変更点 3: GradScalerを推奨される方法で初期化
     scaler = GradScaler(enabled=torch.cuda.is_available())
 
     print("\n--- Starting Training ---")
