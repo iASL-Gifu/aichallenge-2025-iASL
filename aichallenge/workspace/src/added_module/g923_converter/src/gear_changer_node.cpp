@@ -38,14 +38,14 @@ private:
             gear_cmd.command = autoware_auto_vehicle_msgs::msg::GearCommand::NEUTRAL;
             break;
         default:
-            RCLCPP_WARN(this->get_logger(), "Invalid gear value received: %d. No command sent.", msg->data);
+            // RCLCPP_WARN(this->get_logger(), "Invalid gear value received: %d. No command sent.", msg->data);
             return; 
         }
 
         // GearCommandをPublish
         gear_command_publisher_->publish(gear_cmd);
 
-        RCLCPP_INFO(this->get_logger(), "Received gear input: %d -> Publishing GearCommand: %d", msg->data, gear_cmd.command);
+        // RCLCPP_INFO(this->get_logger(), "Received gear input: %d -> Publishing GearCommand: %d", msg->data, gear_cmd.command);
     }
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr subscription_;

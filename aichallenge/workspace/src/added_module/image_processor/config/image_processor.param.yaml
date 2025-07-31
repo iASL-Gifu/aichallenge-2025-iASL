@@ -1,0 +1,5 @@
+/**:
+  ros__parameters:
+    output_rate_hz: 30.0
+    output_width: 224
+    output_height: 224

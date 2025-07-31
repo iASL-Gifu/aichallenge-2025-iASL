@@ -56,7 +56,7 @@ class InferenceNode(Node):
             Image,
             '/sensing/camera/image_raw', # 購読するトピック名
             self.image_callback,
-            image_qos_profile) # <- 変更点 3: 作成したQoSプロファイルを渡す
+            image_qos_profile) 
 
         self.publisher = self.create_publisher(
             AckermannControlCommand,
@@ -66,14 +66,13 @@ class InferenceNode(Node):
         self.get_logger().info('Inference node has been initialized.')
 
     def image_callback(self, msg: Image):
-        # self.get_logger().info('Received an image.', throttle_duration_sec=1.0)
         
         try:
             # ROS ImageメッセージをOpenCV画像に変換
             cv_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
             
             # 画像の前処理
-            sample = {'image': cv_image, 'command': None} # Transformに渡すための辞書
+            sample = {'image': cv_image, 'command': None} 
             transformed_sample = self.transform(sample)
             image_tensor = transformed_sample['image']
             
@@ -92,7 +91,6 @@ class InferenceNode(Node):
             cmd_msg = AckermannControlCommand()
             cmd_msg.stamp = self.get_clock().now().to_msg()
             # 推論結果をメッセージにセット
-            # この部分は実際の車両やシミュレータの要求に合わせて調整が必要
             cmd_msg.longitudinal.speed = 0.0
             cmd_msg.longitudinal.acceleration = float(accel)
             cmd_msg.lateral.steering_tire_angle = float(steer)

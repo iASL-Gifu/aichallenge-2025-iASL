@@ -1,0 +1,13 @@
+<launch>
+    <arg name="image_processor_param"  default="$(find-pkg-share image_processor)/config/image_processor.param.yaml"/>
+
+
+    <node pkg="image_processor" exec="image_process_node" name="image_process_node" >
+        <param from="$(var image_processor_param)"/>
+        <remap from="/input_image" to="/sensing/camera/image_raw"/>
+        <remap from="/output_image" to="/processed/image"/>
+    </node>
+
+</launch>
+
+

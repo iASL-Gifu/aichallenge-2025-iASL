@@ -9,6 +9,8 @@
 
     <!-- パラメータ -->
     <param from="$(var e2e_control_node_param)"/>
+    <!-- <remap from="/sensing/camera/image_raw" to="/sensing/camera/image_raw"/> -->
+    <remap from="/sensing/camera/image_raw" to="/processed/image"/>
   </node>
 
 

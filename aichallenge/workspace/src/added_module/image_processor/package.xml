@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>image_processor</name>
+  <version>0.1.0</version>
+  <description>for aichallenge-2024 AWSIM</description>
+  <maintainer email="ky.37f.9850@s.thers.ac.jp"></maintainer>
+  <license>Apache License 2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>image_transport</depend>
+  <depend>libopencv-dev</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
