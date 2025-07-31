@@ -2,3 +2,4 @@
   ros__parameters:
     model_path: '/path/to/your/model.pth'
     device: 'cuda'
+    inference_hz: 30.0
