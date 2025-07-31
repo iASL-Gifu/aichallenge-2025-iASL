@@ -19,23 +19,23 @@ ImageProcessNode::ImageProcessNode() : Node("image_process_node")
 
   // ImageTransportを使用してサブスクライバーとパブリッシャーを作成
   image_transport::ImageTransport it(shared_from_this());
-  sub_ = it.subscribe("input_image", 1, std::bind(&ImageResizerNode::image_callback, this, std::placeholders::_1), "raw", qos.get_rmw_qos_profile());
+  sub_ = it.subscribe("input_image", 1, std::bind(&ImageProcessNode::image_callback, this, std::placeholders::_1), "raw", qos.get_rmw_qos_profile());
   pub_ = it.advertise("output_image", 1);
   
   // 指定した周波数でタイマーを作成
   auto timer_period = std::chrono::duration<double>(1.0 / output_rate_hz_);
-  timer_ = this->create_wall_timer(timer_period, std::bind(&ImageResizerNode::timer_callback, this));
+  timer_ = this->create_wall_timer(timer_period, std::bind(&ImageProcessNode::timer_callback, this));
 }
 
 // 画像を受信したときのコールバック関数
-void ImageResizerNode::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr& msg)
+void ImageProcessNode::image_callback(const sensor_msgs::msg::Image::ConstSharedPtr& msg)
 {
   std::lock_guard<std::mutex> lock(image_mutex_);
   latest_image_msg_ = msg; // 最新の画像を格納
 }
 
 // タイマーで周期的に呼ばれる関数
-void ImageResizerNode::timer_callback()
+void ImageProcessNode::timer_callback()
 {
   sensor_msgs::msg::Image::ConstSharedPtr current_image_msg;
 
