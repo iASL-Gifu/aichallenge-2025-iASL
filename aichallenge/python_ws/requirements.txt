@@ -1,9 +1,10 @@
 rosbags
-numpy 
+numpy<2
 pandas 
 h5py 
 hdf5plugin
-opencv-python 
+opencv-python<=4.9 
 
 torch
 torchvision
+pyyaml
