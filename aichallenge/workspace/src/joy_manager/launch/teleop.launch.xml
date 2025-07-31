@@ -1,0 +1,18 @@
+<launch>
+  
+  <arg name="teleop_param"  default="$(find-pkg-share joy_manager)/config/teleop.param.yaml"/>
+  <!-- joy manager node-->
+  <node pkg="joy_manager"
+        exec="joy_manager_node"
+        name="joy_manager_node"
+        output="screen">
+        
+    <param from="$(var teleop_param)"/>
+    <!-- joy -->
+    <remap from="/joy" to="/joy"/>
+    <!-- rosbag制御トリガ -->
+    <remap from="/rosbag2_recorder/trigger" to="/rosbag2_recorder/trigger"/>
+    
+  </node>
+
+</launch>

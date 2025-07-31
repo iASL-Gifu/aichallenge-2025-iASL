@@ -1,0 +1,5 @@
+/**:
+  ros__parameters:
+    # --- start/stop トリガボタン ---
+    start_button_index:   1  
+    stop_button_index:    0   
