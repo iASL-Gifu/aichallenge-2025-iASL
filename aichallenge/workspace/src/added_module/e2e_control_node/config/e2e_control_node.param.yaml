@@ -3,3 +3,4 @@
     model_path: '/path/to/your/model.pth'
     device: 'cuda'
     inference_hz: 30.0
+    model_name: 'resnet18'  ## 18 34 50

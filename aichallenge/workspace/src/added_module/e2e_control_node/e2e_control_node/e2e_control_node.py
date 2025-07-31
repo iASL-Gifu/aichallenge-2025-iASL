@@ -7,7 +7,8 @@ from autoware_auto_control_msgs.msg import AckermannControlCommand
 import torch
 from cv_bridge import CvBridge
 import numpy as np
-import threading 
+import threading
+import time 
 
 # 以前作成したモジュールをインポート
 from .src.model.net import DrivingModel
@@ -20,31 +21,39 @@ class InferenceNode(Node):
         # ROS 2 パラメータの宣言
         self.declare_parameter('model_path', '')
         self.declare_parameter('device', 'cuda')
-        self.declare_parameter('inference_hz', 30.0) 
+        self.declare_parameter('inference_hz', 30.0)
+        self.declare_parameter('model_name', 'resnet18')
 
         # パラメータの取得
         model_path = self.get_parameter('model_path').get_parameter_value().string_value
         self.device = torch.device(self.get_parameter('device').get_parameter_value().string_value)
         inference_hz = self.get_parameter('inference_hz').get_parameter_value().double_value
+        model_name = self.get_parameter('model_name').get_parameter_value().string_value
 
         if not model_path:
             self.get_logger().fatal("モデルのパスが指定されていません。'--ros-args -p model_path:=/path/to/model.pth' を付けて実行してください。")
             rclpy.shutdown()
             return
 
+        supported_models = ['resnet18', 'resnet34', 'resnet50']
+        if model_name not in supported_models:
+            self.get_logger().fatal(f"指定されたモデル名 '{model_name}' はサポートされていません。{supported_models} のいずれかを指定してください。")
+            rclpy.shutdown()
+            return
+
         self.get_logger().info(f"Loading model from: {model_path}")
         self.get_logger().info(f"Using device: {self.device}")
         self.get_logger().info(f"Inference frequency set to: {inference_hz} Hz")
+        self.get_logger().info(f"Using model architecture: {model_name}") # 使用するモデル名もログ出力
 
         # モデルの読み込み
-        self.model = DrivingModel(model_name='resnet18').to(self.device)
+        self.model = DrivingModel(model_name=model_name).to(self.device)
         self.model.load_state_dict(torch.load(model_path, map_location=self.device))
         self.model.eval()
         
         self.transform = get_transforms()['val']
         self.bridge = CvBridge()
 
-        ### <--- 変更点 3: 最新の画像とロックを保持する変数を初期化
         self.latest_cv_image = None
         self.image_lock = threading.Lock()
         
@@ -57,7 +66,7 @@ class InferenceNode(Node):
         self.subscription = self.create_subscription(
             Image,
             '/sensing/camera/image_raw',
-            self.image_callback, # 画像を保存するコールバック
+            self.image_callback,
             image_qos_profile) 
 
         # Publisher
@@ -66,52 +75,43 @@ class InferenceNode(Node):
             '/awsim/control_cmd',
             10)
 
-        ### <--- 変更点 4: 指定した周波数で推論を実行するタイマーを作成
         self.timer = self.create_timer(1.0 / inference_hz, self.timer_callback)
 
         self.get_logger().info('Inference node has been initialized.')
 
     def image_callback(self, msg: Image):
-        """
-        画像メッセージを受信し、スレッドセーフに最新の画像として保持する。
-        """
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
-            # ロックをかけて、timer_callbackとの競合を防ぐ
             with self.image_lock:
                 self.latest_cv_image = cv_image[:, :, ::-1].copy() # BGR to RGB
         except Exception as e:
             self.get_logger().error(f'Failed to convert image: {e}')
     
     def timer_callback(self):
-        """
-        タイマーによって定期的に呼び出され、推論とコマンド発行を行う。
-        """
-        # まだ画像を受信していなければ何もしない
         if self.latest_cv_image is None:
             return
             
-        # スレッドセーフに画像データのコピーを取得
         with self.image_lock:
-            # 推論中に画像が更新されても影響がないように、ローカル変数にコピーする
             cv_image = self.latest_cv_image.copy()
 
         try:
-            # 画像の前処理
             sample = {'image': cv_image, 'command': None} 
             transformed_sample = self.transform(sample)
             image_tensor = transformed_sample['image']
             
-            # バッチ次元を追加してデバイスに転送
             input_tensor = image_tensor.unsqueeze(0).to(self.device)
             
-            # 推論の実行
+            start_time = time.time()
+            
             with torch.no_grad():
                 outputs = self.model(input_tensor)
                 accel = outputs['accel'].cpu().item()
                 steer = outputs['steer'].cpu().item()
+
+            end_time = time.time()
+            inference_time_ms = (end_time - start_time) * 1000
+            self.get_logger().info(f'Inference time: {inference_time_ms:.2f} ms')
             
-            # AckermannControlCommandメッセージを作成して配信
             cmd_msg = AckermannControlCommand()
             cmd_msg.stamp = self.get_clock().now().to_msg()
             cmd_msg.longitudinal.speed = 0.0
