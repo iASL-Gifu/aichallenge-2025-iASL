@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy # <- 変更点 1: QoS関連のクラスをインポート
 from sensor_msgs.msg import Image
 from autoware_auto_control_msgs.msg import AckermannControlCommand
 
@@ -43,11 +44,20 @@ class InferenceNode(Node):
         self.bridge = CvBridge()
         
         # SubscriberとPublisherの作成
+
+        # <- 変更点 2: BEST_EFFORTのQoSプロファイルを作成
+        image_qos_profile = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            depth=1 # センサーデータではdepth=1もよく使われる
+        )
+        
         self.subscription = self.create_subscription(
             Image,
             '/sensing/camera/image_raw', # 購読するトピック名
             self.image_callback,
-            10)
+            image_qos_profile) # <- 変更点 3: 作成したQoSプロファイルを渡す
+
         self.publisher = self.create_publisher(
             AckermannControlCommand,
             '/awsim/control_cmd', # 配信するトピック名
@@ -83,7 +93,7 @@ class InferenceNode(Node):
             cmd_msg.stamp = self.get_clock().now().to_msg()
             # 推論結果をメッセージにセット
             # この部分は実際の車両やシミュレータの要求に合わせて調整が必要
-            cmd_msg.longitudinal.speed = 0.0  # 速度は別途指定が必要かもしれない
+            cmd_msg.longitudinal.speed = 0.0
             cmd_msg.longitudinal.acceleration = float(accel)
             cmd_msg.lateral.steering_tire_angle = float(steer)
             
