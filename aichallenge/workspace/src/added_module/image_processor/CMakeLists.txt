@@ -14,7 +14,7 @@ ament_auto_find_build_dependencies()
 ament_auto_add_executable(image_process_node
   src/image_process_node.cpp
 )
-ament_target_dependencies(image_resizer_node
+ament_target_dependencies(image_process_node
   rclcpp
   sensor_msgs
   cv_bridge
