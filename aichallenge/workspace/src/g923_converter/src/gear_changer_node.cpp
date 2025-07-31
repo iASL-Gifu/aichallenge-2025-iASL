@@ -1,38 +1,62 @@
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/int32.hpp>
-#include <std_msgs/msg/bool.hpp>
+#include "autoware_auto_vehicle_msgs/msg/gear_command.hpp" 
 
-class GearPositionSubscriber : public rclcpp::Node
+// ノード名を分かりやすく変更
+class GearCommandController : public rclcpp::Node
 {
 public:
-    GearPositionSubscriber()
-        : Node("gear_changer_node")
+    GearCommandController()
+        : Node("gear_command_controller_node")
     {
         subscription_ = this->create_subscription<std_msgs::msg::Int32>(
-            "gear_position", 1,
-            std::bind(&GearPositionSubscriber::topic_callback, this, std::placeholders::_1));
+            "gear_position", 10, 
+            std::bind(&GearCommandController::gear_input_callback, this, std::placeholders::_1));
 
-        control_publisher_ = this->create_publisher<std_msgs::msg::Bool>("/control/control_mode_request_topic", 10);
+        gear_command_publisher_ = this->create_publisher<autoware_auto_vehicle_msgs::msg::GearCommand>("/control/command/gear_cmd", 10);
     }
 
 private:
-    void topic_callback(const std_msgs::msg::Int32::SharedPtr msg) const
+    void gear_input_callback(const std_msgs::msg::Int32::SharedPtr msg)
     {
-        auto message = std_msgs::msg::Bool();
-        message.data = (msg->data % 2 != 0);  // 奇数ならTrue、偶数ならFalse
-        control_publisher_->publish(message);
+        // GearCommandメッセージを作成
+        auto gear_cmd = autoware_auto_vehicle_msgs::msg::GearCommand();
+        gear_cmd.stamp = this->get_clock()->now(); // タイムスタンプを設定
 
-        RCLCPP_INFO(this->get_logger(), "Current gear position: %d, Control mode request: %s", msg->data, message.data ? "True" : "False");
+        // 受け取った整数に応じてギア指令を決定
+        switch (msg->data)
+        {
+        case 2:
+            gear_cmd.command = autoware_auto_vehicle_msgs::msg::GearCommand::DRIVE;
+            break;
+        case 3:
+            gear_cmd.command = autoware_auto_vehicle_msgs::msg::GearCommand::REVERSE;
+            break;
+        case 4:
+            gear_cmd.command = autoware_auto_vehicle_msgs::msg::GearCommand::PARK;
+            break;
+        case 1:
+            gear_cmd.command = autoware_auto_vehicle_msgs::msg::GearCommand::NEUTRAL;
+            break;
+        default:
+            RCLCPP_WARN(this->get_logger(), "Invalid gear value received: %d. No command sent.", msg->data);
+            return; 
+        }
+
+        // GearCommandをPublish
+        gear_command_publisher_->publish(gear_cmd);
+
+        RCLCPP_INFO(this->get_logger(), "Received gear input: %d -> Publishing GearCommand: %d", msg->data, gear_cmd.command);
     }
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr subscription_;
-    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr control_publisher_;
+    rclcpp::Publisher<autoware_auto_vehicle_msgs::msg::GearCommand>::SharedPtr gear_command_publisher_;
 };
 
 int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<GearPositionSubscriber>());
+    rclcpp::spin(std::make_shared<GearCommandController>());
     rclcpp::shutdown();
     return 0;
 }
