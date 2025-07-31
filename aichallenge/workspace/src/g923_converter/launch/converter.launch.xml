@@ -1,0 +1,9 @@
+<launch>
+    <arg name="device_path" default="/dev/input/event6"/>
+    
+    <node pkg="g923_converter" exec="gear_change_node" name="gear_change_node" />
+    <node pkg="g923_converter" exec="handle_converter_node" name="handle_converter_node" />
+    <node pkg="g923_ros2_driver" exec="g923_driver_node" name="g923_driver_node" args="$(var device_path)" />
+</launch>
+
+
