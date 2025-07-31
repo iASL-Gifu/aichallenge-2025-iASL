@@ -42,6 +42,8 @@ class DrivingDataset(Dataset):
             image = f['images'][local_idx]
             command = f['commands'][local_idx]
 
+        image = image[:, :, ::-1].copy()  # BGR to RGB conversion
+
         sample = {
             'image': image, 
             'command': torch.from_numpy(command.astype(np.float32))

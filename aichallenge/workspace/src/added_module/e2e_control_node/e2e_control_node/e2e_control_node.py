@@ -70,6 +70,7 @@ class InferenceNode(Node):
         try:
             # ROS ImageメッセージをOpenCV画像に変換
             cv_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+            cv_image = cv_image[:, :, ::-1].copy()  # BGRからRGBに変換
             
             # 画像の前処理
             sample = {'image': cv_image, 'command': None} 
