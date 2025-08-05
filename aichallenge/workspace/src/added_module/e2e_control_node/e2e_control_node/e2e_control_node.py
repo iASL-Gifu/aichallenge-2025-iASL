@@ -1,134 +1,147 @@
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
-from sensor_msgs.msg import Image
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+
+from sensor_msgs.msg import Image as ImageMsg
+from sensor_msgs.msg import Imu as ImuMsg
 from autoware_auto_control_msgs.msg import AckermannControlCommand
 
 import torch
 from cv_bridge import CvBridge
+import cv2
 import numpy as np
 import threading
-import time 
+from PIL import Image
+import time
 
-# 以前作成したモジュールをインポート
-from .src.model.net import DrivingModel
-from .src.data.transform import get_transforms
+from src.model.dual_net import ModelA_StateFixed, ModelB_StateUpdating, ModelC_HybridSkipConnection
+from src.data.transform import val_test_transform
 
-class InferenceNode(Node):
+MODEL_MAP = {
+    "ModelA_StateFixed": ModelA_StateFixed,
+    "ModelB_StateUpdating": ModelB_StateUpdating,
+    "ModelC_HybridSkipConnection": ModelC_HybridSkipConnection,
+}
+
+class DrivingInferenceNode(Node):
     def __init__(self):
         super().__init__('driving_model_inference_node')
         
-        # ROS 2 パラメータの宣言
         self.declare_parameter('model_path', '')
+        self.declare_parameter('model_name', 'ModelC_HybridSkipConnection')
         self.declare_parameter('device', 'cuda')
-        self.declare_parameter('inference_hz', 30.0)
-        self.declare_parameter('model_name', 'resnet18')
-
-        # パラメータの取得
+        self.declare_parameter('imu_buffer_size', 10)
         model_path = self.get_parameter('model_path').get_parameter_value().string_value
-        self.device = torch.device(self.get_parameter('device').get_parameter_value().string_value)
-        inference_hz = self.get_parameter('inference_hz').get_parameter_value().double_value
         model_name = self.get_parameter('model_name').get_parameter_value().string_value
-
-        if not model_path:
-            self.get_logger().fatal("モデルのパスが指定されていません。'--ros-args -p model_path:=/path/to/model.pth' を付けて実行してください。")
-            rclpy.shutdown()
-            return
-
-        supported_models = ['resnet18', 'resnet34', 'resnet50']
-        if model_name not in supported_models:
-            self.get_logger().fatal(f"指定されたモデル名 '{model_name}' はサポートされていません。{supported_models} のいずれかを指定してください。")
-            rclpy.shutdown()
-            return
-
-        self.get_logger().info(f"Loading model from: {model_path}")
-        self.get_logger().info(f"Using device: {self.device}")
-        self.get_logger().info(f"Inference frequency set to: {inference_hz} Hz")
-        self.get_logger().info(f"Using model architecture: {model_name}") # 使用するモデル名もログ出力
-
-        # モデルの読み込み
-        self.model = DrivingModel(model_name=model_name).to(self.device)
+        self.device = torch.device(self.get_parameter('device').get_parameter_value().string_value)
+        self.imu_buffer_size = self.get_parameter('imu_buffer_size').get_parameter_value().integer_value
+        
+        if not model_path or model_name not in MODEL_MAP:
+            self.get_logger().fatal("モデルパスまたはモデル名が無効です。")
+            rclpy.shutdown(); return
+        
+        self.get_logger().info(f"モデルをロード中: {model_path}")
+        model_class = MODEL_MAP.get(model_name)
+        self.model = model_class()
         self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+        self.model.to(self.device)
         self.model.eval()
-        
-        self.transform = get_transforms()['val']
+
         self.bridge = CvBridge()
-
-        self.latest_cv_image = None
-        self.image_lock = threading.Lock()
+        self.transform = val_test_transform
         
-        # Subscriber
-        image_qos_profile = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
-            durability=DurabilityPolicy.VOLATILE,
-            depth=1
-        )
-        self.subscription = self.create_subscription(
-            Image,
-            '/sensing/camera/image_raw',
-            self.image_callback,
-            image_qos_profile) 
+        self.imu_buffer = []
+        self.latest_image_pil = None
+        self.data_lock = threading.Lock() # データの受け渡しのみを保護する軽量なロック
+        self.plan_ready_flag = False
 
-        # Publisher
-        self.publisher = self.create_publisher(
-            AckermannControlCommand,
-            '/awsim/control_cmd',
-            10)
+        sensor_qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=1)
+        self.image_sub = self.create_subscription(ImageMsg, '/sensing/camera/image_raw', self.image_callback, sensor_qos)
+        self.imu_sub = self.create_subscription(ImuMsg, '/sensing/imu/imu_raw', self.imu_callback, sensor_qos)
+        self.control_pub = self.create_publisher(AckermannControlCommand, '/awsim/control_cmd', 10)
 
-        self.timer = self.create_timer(1.0 / inference_hz, self.timer_callback)
+        self.get_logger().info('推論ノードの初期化が完了しました。最初の画像とIMUデータを待機中...')
 
-        self.get_logger().info('Inference node has been initialized.')
-
-    def image_callback(self, msg: Image):
+    def image_callback(self, msg: ImageMsg):
+        """画像を受け取り、最新の画像を保持する"""
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
-            with self.image_lock:
-                self.latest_cv_image = cv_image[:, :, ::-1].copy() # BGR to RGB
+            image_pil = Image.fromarray(cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB))
+            
+            # ロックを使って最新の画像をアトミックに更新
+            with self.data_lock:
+                self.latest_image_pil = image_pil
         except Exception as e:
-            self.get_logger().error(f'Failed to convert image: {e}')
+            self.get_logger().error(f'画像処理中にエラーが発生: {e}')
     
-    def timer_callback(self):
-        if self.latest_cv_image is None:
-            return
-            
-        with self.image_lock:
-            cv_image = self.latest_cv_image.copy()
+    def imu_callback(self, msg: ImuMsg):
+        """すべての推論ロジックをここに集約"""
+        
+        # 1. IMUデータをバッファリング
+        imu_sample = [
+            msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z,
+            msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z
+        ]
+        # self.imu_bufferはimu_callbackからしか書き込まれないのでロック不要
+        self.imu_buffer.append(imu_sample)
+        if len(self.imu_buffer) > self.imu_buffer_size:
+            self.imu_buffer.pop(0)
 
+        # 2. 新しい画像があるかチェックし、あればプランを更新
+        new_image_to_process = None
+        with self.data_lock:
+            if self.latest_image_pil is not None:
+                new_image_to_process = self.latest_image_pil
+                self.latest_image_pil = None 
+
+        if new_image_to_process:
+            self.update_driving_plan(new_image_to_process)
+
+        # 3. プランが準備完了なら、制御コマンドを予測してPublish
+        if self.plan_ready_flag:
+            try:
+                imu_tensor = torch.tensor(imu_sample, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(self.device)
+                
+                accel, steer = self.model.predict_control(imu_tensor)
+
+                cmd_msg = AckermannControlCommand()
+                cmd_msg.stamp = self.get_clock().now().to_msg()
+                cmd_msg.longitudinal.speed = 0.0
+                cmd_msg.longitudinal.acceleration = float(accel)
+                cmd_msg.lateral.steering_tire_angle = float(steer)
+                self.control_pub.publish(cmd_msg)
+            except Exception as e:
+                self.get_logger().error(f'制御予測中にエラーが発生: {e}')
+
+
+    def update_driving_plan(self, image_pil):
+        """運転方針（モデルの内部状態）を更新する。imu_callbackからのみ呼ばれる。"""
         try:
-            sample = {'image': cv_image, 'command': None} 
-            transformed_sample = self.transform(sample)
-            image_tensor = transformed_sample['image']
-            
-            input_tensor = image_tensor.unsqueeze(0).to(self.device)
-            
             start_time = time.time()
+            self.get_logger().info('新しい画像を検出。運転プランを更新します...')
             
-            with torch.no_grad():
-                outputs = self.model(input_tensor)
-                accel = outputs['accel'].cpu().item()
-                steer = outputs['steer'].cpu().item()
-
-            end_time = time.time()
-            inference_time_ms = (end_time - start_time) * 1000
-            self.get_logger().info(f'Inference time: {inference_time_ms:.2f} ms')
+            image_tensor = self.transform(image_pil).unsqueeze(0).to(self.device)
+            imu_sequence_np = np.array(self.imu_buffer)
+            imu_sequence_tensor = torch.from_numpy(imu_sequence_np).float().unsqueeze(0).to(self.device)
             
-            cmd_msg = AckermannControlCommand()
-            cmd_msg.stamp = self.get_clock().now().to_msg()
-            cmd_msg.longitudinal.speed = 0.0
-            cmd_msg.longitudinal.acceleration = float(accel)
-            cmd_msg.lateral.steering_tire_angle = float(steer)
+            self.model.update_plan(image_tensor, imu_sequence_tensor)
             
-            self.publisher.publish(cmd_msg)
+            if not self.plan_ready_flag:
+                self.plan_ready_flag = True
+                self.get_logger().info('最初の運転プランが生成されました。推論を開始します。')
             
+            elapsed_time = (time.time() - start_time) * 1000
+            self.get_logger().info(f'運転方針の更新が完了しました (処理時間: {elapsed_time:.2f} ms)')
         except Exception as e:
-            self.get_logger().error(f'Failed to process image in timer callback: {e}')
+            self.get_logger().error(f'プラン更新中にエラーが発生: {e}')
 
 
 def main(args=None):
     rclpy.init(args=args)
     try:
-        inference_node = InferenceNode()
-        executor = rclpy.executors.MultiThreadedExecutor()
+        inference_node = DrivingInferenceNode()
+        executor = MultiThreadedExecutor()
         executor.add_node(inference_node)
         executor.spin()
     except KeyboardInterrupt:
