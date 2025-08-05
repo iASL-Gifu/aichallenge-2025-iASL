@@ -1,18 +1,25 @@
-# データとモデルの保存場所
-data_dir: '/aichallenge/record/preprocessed/at/'
-save_dir: './ckpts'
+# Data and Model Paths
+data_path: "/path/to/your/output.h5"
+output_dir: "./checkpoints/model_a_train_loss_best" # 保存先ディレクトリ名も変更すると分かりやすい
 
-# 学習ハイパーパラメータ
+# Model Parameters
+model_name: "ModelA_StateFixed" 
+model_params: {} 
+
+# Training Hyperparameters
 training:
-  epochs: 20
+  epochs: 100
   batch_size: 32
   learning_rate: 0.0001
+  # val_split: 0.15  <- 検証を行わないため不要
+  num_workers: 2
+  device: "cuda"
 
-# データローダ設定
-dataloader:
-  num_workers: 16
+ema:
+  use: true
+  decay: 0.999
 
-# モデル設定
-model:
-  name: 'resnet18'
-  ema_decay: 0.999
+scheduler:
+  type: "StepLR"
+  step_size: 30  # 30エポックごとに学習率を変更
+  gamma: 0.1     # 学習率を0.1倍にする
