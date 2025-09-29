@@ -1,5 +1,8 @@
 #!/bin/bash
 
+SHM_SIZE="32g"
+ADD_GROUP_ID="107"
+
 target="${1}"
 device="${2}"
 case "${target}" in
@@ -42,4 +45,4 @@ LOG_FILE="$LOG_DIR/docker_run.log"
 echo "A rocker run log is stored at : file://$LOG_FILE"
 
 # shellcheck disable=SC2086
-rocker ${opts} --x11 --devices /dev/dri --user --net host --privileged --name "aichallenge-2025-$(date "+%Y-%m-%d-%H-%M-%S")" --volume ${volume} -- "aichallenge-2025-${target}-${USER}" 2>&1 | tee "$LOG_FILE"
+rocker ${opts} --x11 --group-add ${ADD_GROUP_ID} --shm-size=${SHM_SIZE} --devices /dev/dri --user --net host --privileged --name "aichallenge-2025-$(date "+%Y-%m-%d-%H-%M-%S")" --volume ${volume} -- "aichallenge-2025-${target}-${USER}" 2>&1 | tee "$LOG_FILE"
