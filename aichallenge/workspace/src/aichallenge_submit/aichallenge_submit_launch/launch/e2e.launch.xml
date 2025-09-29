@@ -115,8 +115,8 @@
 
   <!-- E2E Lidar Net -->
   <include file="$(find-pkg-share e2e_node_py)/launch/e2e_node.launch.xml" >
-    <arg name="outside_model_weight" value="$(find-pkg-share aichallenge_submit_launch)/ckpts/outside_model.npz"/>
-    <arg name="pit_model_weight" value="$(find-pkg-share aichallenge_submit_launch)/ckpts/pit_model.npz"/>
+    <arg name="model_weight" value="$(find-pkg-share aichallenge_submit_launch)/ckpts/model.npz"/>
+
   </include>
   
 
