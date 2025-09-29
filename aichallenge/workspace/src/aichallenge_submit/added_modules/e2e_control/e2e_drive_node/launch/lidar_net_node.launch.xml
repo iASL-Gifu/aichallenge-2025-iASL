@@ -1,0 +1,23 @@
+<launch>
+
+  <arg name="lidar_net_node_param"  default="$(find-pkg-share e2e_drive_node)/config/lidar_net_node.param.yaml"/>
+  <arg name="pit_model_weight" default="$(find-pkg-share e2e_drive_node)/ckpts/pit_model.pth"/>
+  <arg name="outside_model_weight" default="$(find-pkg-share e2e_drive_node)/ckpts/outside_model.pth"/>
+  <!-- lidar_net_node -->
+  <node pkg="e2e_drive_node" 
+        exec="lidar_net_node"
+        name="lidar_net_node"
+        output="screen">
+
+    <!-- パラメータ -->
+    <param from="$(var lidar_net_node_param)"/>
+    <param name="model.pit_model_weight" value="$(var pit_model_weight)"/>
+    <param name="model.outside_model_weight" value="$(var outside_model_weight)"/>
+    <!-- トピックのリマッピング -->
+    <remap from='/scan' to='/scan'/>
+    <remap from='/awsim/control_cmd' to='/awsim/raw_control_cmd'/>
+  </node>
+
+  <!-- <include file="$(find-pkg-share pit_control)/launch/pit_control.launch.xml"/> -->
+
+</launch>

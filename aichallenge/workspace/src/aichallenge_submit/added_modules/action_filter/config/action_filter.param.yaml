@@ -1,0 +1,44 @@
+/**:
+  ros__parameters:
+    # フィルタの種類: "average", "median", "none" から選択
+    filter_type: "none"
+    
+    # 移動平均/中央値フィルタのウィンドウサイズ
+    window_size: 5
+    
+    # アクセルに対するスケールフィルタを有効にするか
+    use_scale_filter: true
+    
+    # アクセルスケールフィルタの種類: "normal" or "advance"
+    scale_filter_type: "advance"
+
+    # ---------------------------------------------------
+    # "advance" モード用のパラメータグループ (アクセルのみ)
+    # ---------------------------------------------------
+    advance:
+      # 直進状態と判断する操舵角の閾値 (単位: rad)
+      straight_steer_threshold: 0.075
+      # "直進時"の速度スケール比
+      straight_speed_scale_ratio: 1.0
+      # カーブ時の速度スケール比
+      cornering_speed_scale_ratio: 1.0
+
+    # ---------------------------------------------------
+    # セクションごとのステアリングスケール比率
+    # ---------------------------------------------------
+    section_steer_scale_ratios:
+      - 1.0  # Section 0
+      - 1.0  # Section 1
+      - 1.0  # Section 2
+      - 1.0  # Section 3
+      - 1.0  # Section 4
+      - 1.0  # Section 5
+      - 1.0  # Section 6
+      - 1.0  # Section 7
+      - 1.0  # Section 8
+
+    # ---------------------------------------------------
+    # 速度制限
+    # ---------------------------------------------------
+    velocity_threshold_kmh: 36.6
+    throttle_on_limit: 0.0

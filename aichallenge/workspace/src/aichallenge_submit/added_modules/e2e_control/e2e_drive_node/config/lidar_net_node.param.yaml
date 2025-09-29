@@ -1,0 +1,23 @@
+/**:
+  ros__parameters:
+    timer_hz: 50.0
+
+    # --- モデル設定 ---
+    model:
+      pit_model_weight: "path/to/your/pit_model.pth"
+      outside_model_weight: "path/to/your/outside_model.pth"
+
+      # --- 共通のモデル構造パラメータ ---
+      input_dim: 1080
+      output_dim: 2
+
+    pit_exit:
+      x: 89649.21760245602
+      y: 43119.00307332072
+      radius: 4.0
+
+    acceleration:
+      # ピット内にいるときの加速度
+      pit: 0.000005
+      # ピット外に出てからの加速度
+      outside: 1.0

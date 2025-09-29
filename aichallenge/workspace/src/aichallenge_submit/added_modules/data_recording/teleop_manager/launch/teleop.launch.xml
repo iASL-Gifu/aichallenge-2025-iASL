@@ -1,0 +1,35 @@
+<launch>
+  
+  <!-- joynode -->
+  <node pkg="joy" 
+        exec="joy_node"
+        name="joy_node"
+        output="screen">
+    <param name="deadzone" value="0.05"/>
+  </node>
+
+  <arg name="teleop_param"  default="$(find-pkg-share teleop_manager)/config/teleop.param.yaml"/>
+  <!-- joy manager node-->
+  <node pkg="teleop_manager"
+        exec="joy_manager_node"
+        name="joy_manager_node"
+        output="screen">
+        
+    <param from="$(var teleop_param)"/>
+    <!-- joy -->
+    <remap from="/joy" to="/joy"/>
+    <!-- 自律走行　コマンド -->
+    <remap from="/ackermann_cmd" to="/ackermann_cmd"/>
+    <!-- AWSIMへの入力 -->
+    <remap from="/cmd_drive" to="/awsim/raw_control_cmd"/> 
+    <!-- rosbag制御トリガ -->
+    <remap from="/rosbag2_recorder/trigger" to="/rosbag2_recorder/trigger"/>
+    <!-- offset トリガ -->
+    <remap from="/steer_offset_inc" to="/steer_offset_inc"/>
+    <remap from="/steer_offset_dec" to="/steer_offset_dec"/>
+    <remap from="/speed_offset_inc" to="/speed_offset_inc"/>
+    <remap from="/speed_offset_dec" to="/speed_offset_dec"/>
+    
+  </node>
+
+</launch>

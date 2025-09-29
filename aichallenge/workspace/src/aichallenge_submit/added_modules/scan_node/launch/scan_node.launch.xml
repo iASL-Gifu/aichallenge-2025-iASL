@@ -1,0 +1,19 @@
+<launch>
+
+  <arg name="scan_node_param"  default="$(find-pkg-share scan_node)/config/scan_node.param.yaml"/>
+  <arg name="csv_path" default="$(find-pkg-share scan_node)/map/lane.csv"/>
+  <!-- joy manager node-->
+  <node pkg="scan_node"
+        exec="scan_node"
+        name="scan_node"
+        output="screen">
+
+    <param from="$(var scan_node_param)"/>
+    <param name="csv_path" value="$(var csv_path)"/>
+
+    <remap from="/localization/pose_with_covariance" to="/localization/pose_with_covariance"/>
+    <remap from="/scan" to="/scan"/>
+    
+  </node>
+
+</launch>

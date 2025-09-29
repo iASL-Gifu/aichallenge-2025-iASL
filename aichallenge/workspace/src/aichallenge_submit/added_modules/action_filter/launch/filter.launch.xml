@@ -1,0 +1,21 @@
+<launch>
+
+  <arg name="action_filter"  default="$(find-pkg-share action_filter)/config/action_filter.param.yaml"/>
+  <!-- action filter node -->
+  <node pkg="action_filter" 
+        exec="action_filter_node"
+        name="action_filter_node"
+        output="screen">
+
+    <!-- パラメータ -->
+    <param from="$(var action_filter)"/>
+    <!-- トピックのremap -->
+    <remap from="/input/control_cmd" to="/awsim/raw_control_cmd"/>
+    <remap from="/output/control_cmd_filtered" to="/awsim/control_cmd"/>
+    <remap from="/vehicle/status/velocity_status" to="/vehicle/status/velocity_status"/>
+    <remap from="/status" to="/aichallenge/awsim/status"/>
+
+  </node>
+
+
+</launch>

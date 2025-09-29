@@ -1,0 +1,18 @@
+/**: 
+  ros__parameters:
+    # --- モデル設定 ---
+    model:
+      # 'small' または 'large' を指定
+      architecture: "small"
+      # 使用する単一のモデル重みファイル (.npz)
+      weight_path: "model_weights.npz"
+      # モデルの入力次元数 (LiDARのスキャン点数)
+      input_dim: 270
+
+    # --- 加速度設定 ---
+    # 車両の固定加速度 [m/s^2]
+    acceleration: 1.0
+
+    # --- ログ設定 ---
+    # 推論速度などの統計情報をコンソールに出力する間隔 [秒]
+    log_interval_sec: 5.0

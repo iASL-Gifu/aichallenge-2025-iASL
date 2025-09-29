@@ -1,0 +1,19 @@
+<launch>
+
+  <arg name="e2e_node_param"  default="$(find-pkg-share e2e_node_py)/config/e2e_node.param.yaml"/>
+  <arg name="model_weight" default="$(find-pkg-share e2e_node_py)/ckpts/outside_model.pth"/>
+  <!-- lidar_net_node -->
+  <node pkg="e2e_node_py" 
+        exec="e2e_node"
+        name="e2e_node"
+        output="screen">
+
+    <!-- パラメータ -->
+    <param from="$(var e2e_node_param)"/>
+    <param name="model.weight_path" value="$(var model_weight)"/>
+    <!-- トピックのリマッピング -->
+    <remap from='/scan' to='/scan'/>
+    <remap from='/awsim/control_cmd' to='/awsim/raw_control_cmd'/>
+  </node>
+
+</launch>
