@@ -1,0 +1,17 @@
+<launch>
+
+  <include file="$(find-pkg-share bag_manager_py)/launch/bag_manager_node.launch.xml" >
+  </include>
+
+  <include file="$(find-pkg-share teleop_manager)/launch/teleop.launch.xml" >
+  </include>
+
+  <!-- <include file="$(find-pkg-share scan_node)/launch/scan_node.launch.xml" >
+  </include>
+
+  <include file="$(find-pkg-share action_filter)/launch/filter.launch.xml" >
+  </include> -->
+
+
+
+</launch>
