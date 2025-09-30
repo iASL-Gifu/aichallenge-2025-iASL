@@ -1,23 +1,18 @@
-/**:
+/**: 
   ros__parameters:
-    timer_hz: 50.0
-
     # --- モデル設定 ---
     model:
-      pit_model_weight: "path/to/your/pit_model.pth"
-      outside_model_weight: "path/to/your/outside_model.pth"
+      # 'small' または 'large' を指定
+      architecture: "small"
+      # 使用する単一のモデル重みファイル (.npz)
+      weight_path: "model_weights.npz"
+      # モデルの入力次元数 (LiDARのスキャン点数)
+      input_dim: 270
 
-      # --- 共通のモデル構造パラメータ ---
-      input_dim: 1080
-      output_dim: 2
+    # --- 加速度設定 ---
+    # 車両の固定加速度 [m/s^2]
+    acceleration: 1.0
 
-    pit_exit:
-      x: 89649.21760245602
-      y: 43119.00307332072
-      radius: 4.0
-
-    acceleration:
-      # ピット内にいるときの加速度
-      pit: 0.000005
-      # ピット外に出てからの加速度
-      outside: 1.0
+    # --- ログ設定 ---
+    # 推論速度などの統計情報をコンソールに出力する間隔 [秒]
+    log_interval_sec: 5.0
