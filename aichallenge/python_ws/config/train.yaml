@@ -1,7 +1,7 @@
 # データセットに関する設定
 data:
-  train_dir: "/path/to/dataset/train"
-  val_dir: "/path/to/dataset/val" 
+  train_dir: "/aichallenge/dataset/train"
+  val_dir: "/aichallenge/dataset/val"
   sequence_length: 1                   
   slide_step: 1
   load_into_memory: False
@@ -19,8 +19,8 @@ train:
   epochs: 100
   lr: 0.0001                                         
   num_workers: 16
-  save_dir: "ckpts/train_lidar_net/${now:%Y-%m-%d}/${now:%H-%M-%S}/"
-  log_dir: "logs/train_lidar_net/${now:%Y-%m-%d}/${now:%H-%M-%S}/"
+  save_dir: "ckpts/train/${now:%Y-%m-%d}/${now:%H-%M-%S}/"
+  log_dir: "logs/train/${now:%Y-%m-%d}/${now:%H-%M-%S}/"
 
   # 損失関数の重み
   loss:
@@ -34,4 +34,4 @@ train:
 # Hydraの実行ディレクトリ設定
 hydra:
   run:
-    dir: ./outputs/train_lidar_net/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: ./outputs/train/${now:%Y-%m-%d}/${now:%H-%M-%S}
