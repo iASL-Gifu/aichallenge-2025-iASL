@@ -13,8 +13,11 @@ data_keys:
     ranges: 'ranges'
     intensities: 'intensities'
 
+sync:
+  # 許容する最大時間差（秒）。0.1秒 = 100ミリ秒
+  tolerance_seconds: 0.05
+
 # --- フィルタリング設定 ---
-# ここで様々な条件を指定して、目的のデータセットを作成します。
 filtering:
   # 人間介入データに関するフィルタ
   human_intervention:

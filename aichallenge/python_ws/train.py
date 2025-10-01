@@ -87,7 +87,15 @@ def main(cfg: DictConfig):
             scans = data_dict['scan'].to(device) # -> [64, 1, 1080]
         
             targets = data_dict['control_cmd'].to(device) 
-            
+
+            if torch.isnan(scans).any():
+                print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                print("!!  異常値 (NaN) を入力データで検出  !!")
+                print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            if torch.isinf(scans).any():
+                print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                print("!!  異常値 (Inf) を入力データで検出  !!")
+                print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             targets = targets[:, -1, :]
             outputs = model(scans) # 2次元のままモデルに入力)
             loss = criterion(outputs, targets)
