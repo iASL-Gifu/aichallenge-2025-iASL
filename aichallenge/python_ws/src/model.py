@@ -42,11 +42,8 @@ class TinyLidarNet(nn.Module):
                     nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
-        # 入力形状: (Batch, Length)
 
-        # (B, L) -> (B, 1, L) : チャンネル次元を追加
-        x = x.unsqueeze(1)
-
+        # 入力形状: (Batch, 1, Length)
         # Conv層 + ReLU
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
@@ -105,10 +102,7 @@ class TinyLidarNetSmall(nn.Module):
                     nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
-        # 入力形状: (Batch, Length)
-        
-        # (B, L) -> (B, 1, L) : チャンネル次元を追加
-        x = x.unsqueeze(1)
+        # 入力形状: (Batch, 1, Length)
         
         # Conv層 + ReLU
         x = F.relu(self.conv1(x))

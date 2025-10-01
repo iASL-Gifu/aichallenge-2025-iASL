@@ -7,9 +7,9 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.tensorboard import SummaryWriter
 
-from .src.model import TinyLidarNet, TinyLidarNetSmall
-from .src.data import MultiFileConcatDataset
-from .src.loss import WeightedSmoothL1Loss
+from src.model import TinyLidarNet, TinyLidarNetSmall
+from src.data import MultiFileConcatDataset
+from src.loss import WeightedSmoothL1Loss
 
 @hydra.main(config_path="./config", config_name="train", version_base='1.2')
 def main(cfg: DictConfig):
@@ -22,7 +22,6 @@ def main(cfg: DictConfig):
     print(f"Using device: {device}")
 
     
-    # scan_num_pointsをconfigから渡すように変更
     train_dataset = MultiFileConcatDataset(
         data_dir=cfg.data.train_dir,
         sequence_length=cfg.data.sequence_length,
@@ -56,7 +55,6 @@ def main(cfg: DictConfig):
         model = TinyLidarNet(input_dim=cfg.model.input_dim,
                                     output_dim=cfg.model.output_dim).to(device)
 
-    ## pretrained
     if cfg.train.pretrained_path is not None:
         model.load_state_dict(torch.load(cfg.train.pretrained_path))
         
@@ -86,12 +84,12 @@ def main(cfg: DictConfig):
 
         for data_dict in tqdm(train_loader, desc=f"Epoch {epoch+1}/{cfg.train.epochs} [Train]"):
             
-            scans = data_dict['scan'].to(device)       
+            scans = data_dict['scan'].to(device) # -> [64, 1, 1080]
+        
             targets = data_dict['control_cmd'].to(device) 
             
-            targets = targets[:, -1, :] # (B, 2)
-            # モデルにスキャンデータを渡す
-            outputs = model(scans)
+            targets = targets[:, -1, :]
+            outputs = model(scans) # 2次元のままモデルに入力)
             loss = criterion(outputs, targets)
             
             optimizer.zero_grad()
@@ -122,11 +120,12 @@ def validate_step(model: TinyLidarNet, val_loader: DataLoader, device: torch.dev
     val_loss = 0
     with torch.no_grad():
         for data_dict in tqdm(val_loader, desc="Validation"):
-            scans = data_dict['scan'].to(device)
-            targets = data_dict['control_cmd'].to(device)
-            targets = targets[:, -1, :] 
+            scans = data_dict['scan'].to(device) # -> [64, 1, 1080]
 
-            outputs = model(scans)
+            targets = data_dict['control_cmd'].to(device)
+            targets = targets[:, -1, :]
+
+            outputs = model(scans) # 2次元のままモデルに入力
             
             loss = criterion(outputs, targets)
             val_loss += loss.item()

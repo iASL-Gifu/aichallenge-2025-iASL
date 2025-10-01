@@ -97,7 +97,7 @@ class SequenceH5Dataset(Dataset):
         """Numpy配列の辞書を、Tensorの辞書に変換する。"""
         return {
             'scan': self._process_scan(sample['scan']),
-            'control_cmd': torch.from_numpy(sample['control_cmd']).float()
+            'control_cmd': torch.from_numpy(sample['control_cmd']).float()[:, [1, 2]] 
         }
 
     def _process_scan(self, scan_data: np.ndarray) -> torch.Tensor:
