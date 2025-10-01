@@ -116,6 +116,8 @@
   <!-- E2E Lidar Net -->
   <include file="$(find-pkg-share e2e_node_py)/launch/e2e_node.launch.xml" >
     <arg name="model_weight" value="$(find-pkg-share aichallenge_submit_launch)/ckpts/model.npz"/>
+    <arg name="model_architecture" value="large"/>
+    <arg name="model_input_dim" value="1080"/>  
 
   </include>
   

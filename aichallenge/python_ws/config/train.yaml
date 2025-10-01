@@ -5,12 +5,12 @@ data:
   sequence_length: 1                   
   slide_step: 1
   load_into_memory: False
-  scan_num_points: 270
+  scan_num_points: 1080
 
 # モデルに関する設定
 model:
   name: "TinyLidarNet"
-  input_dim: 270
+  input_dim: 1080
   output_dim: 2
 
 # 学習に関する設定
