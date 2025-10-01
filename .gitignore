@@ -4,3 +4,7 @@
 *.webm
 *.db3
 rosbag2*/
+
+record/
+extracted/
+dataset/

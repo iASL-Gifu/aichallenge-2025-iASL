@@ -1,181 +1,187 @@
 import os
-import h5py
-import hdf5plugin
-import numpy as np
-import pandas as pd
-import yaml
 from pathlib import Path
 import argparse
+import h5py
+import numpy as np
+import hdf5plugin
+from rosbags.highlevel import AnyReader
 from tqdm import tqdm
-import multiprocessing
-from functools import partial
+import yaml
+
+# --- 対応するトピックの定数定義 ---
+CONTROL_TOPIC = '/awsim/control_cmd'
+SCAN_TOPIC = '/scan'  
+
+# --- 処理対象のトピックリスト ---
+TARGET_TOPICS = [
+    CONTROL_TOPIC,
+    SCAN_TOPIC  
+]
 
 def load_config(config_path):
     """YAML設定ファイルを読み込むヘルパー関数"""
     with open(config_path, 'r') as f:
         return yaml.safe_load(f)
 
-def preprocess_h5(h5_path, input_root, output_root, config):
-    """
-    ワーカープロセスのためのラッパー関数。
-    """
-    relative_path = h5_path.relative_to(input_root)
-    output_h5_path = output_root / relative_path
-    output_h5_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    _preprocess_h5_internal(h5_path, output_h5_path, config)
+def get_blosc_opts(complevel=1, complib='blosc:zstd', shuffle='byte'):
+    """Blosc圧縮の設定を返すヘルパー関数"""
+    shuffle_map = {'bit': 2, 'byte': 1, 'none': 0}
+    shuffle_val = shuffle_map.get(shuffle, 0)
+    complib_name = complib.split(':')[-1]
 
-def _preprocess_h5_internal(input_path, output_path, config):
-    """
-    単一のHDF5ファイルに対する前処理のコアロジック。
-    scanとcontrol_cmdを同期して書き出すことに特化。
-    """
-    print(f"\nProcessing: {input_path}\n        -> To: {output_path}")
-    
-    # --- 設定ファイルからキー名やパラメータを取得 ---
-    cfg_keys = config['data_keys']
-    cfg_preproc = config['preprocessing']
-    cfg_output = config['output']
+    return {
+        **hdf5plugin.Blosc(clevel=complevel, cname=complib_name, shuffle=shuffle_val),
+        'chunks': True
+    }
 
-    scan_dset_name = cfg_keys['scan_dataset']
-    control_dset_name = cfg_keys['control_dataset']
+def find_rosbag_directories(root_search_path: Path) -> list[Path]:
+    """指定されたパス以下を再帰的に探索し、rosbagのディレクトリのリストを返す関数"""
+    bag_directories = []
+    print(f"Searching for rosbags in '{root_search_path}'...")
+    for dirpath, _, filenames in os.walk(root_search_path):
+        if 'metadata.yaml' in filenames:
+            bag_path = Path(dirpath)
+            bag_directories.append(bag_path)
+            print(f"  -> Found: {bag_path}")
+    return bag_directories
+
+def process_bag(bag_path: Path, output_h5_path: Path, config: dict):
+    """単一のrosbagファイルを処理し、HDF5ファイルに変換する。"""
+    print(f"\nProcessing '{bag_path.name}'...")
     
-    print(f"  [{input_path.name}] Loading raw data into memory...")
-    dataframes = {}
-    scan_attributes = {}
+    # 1. メッセージ数の事前カウント
+    topic_msg_counts = {}
+    total_messages = 0
+    duration_sec = 0.0
     try:
-        with h5py.File(input_path, 'r') as f:
-            # --- Scanデータの読み込み ---
-            if scan_dset_name in f:
-                scan_df = pd.DataFrame(f[scan_dset_name][:])
-                scan_df[cfg_keys['time_columns']['timestamp']] = scan_df[cfg_keys['time_columns']['sec']].astype(np.int64) * 1_000_000_000 + scan_df[cfg_keys['time_columns']['nanosec']].astype(np.int64)
-                
-                for key, value in f[scan_dset_name].attrs.items():
-                    scan_attributes[key] = value
-
-                print(f"  [{input_path.name}] Cleaning nan/inf in scan data...")
-                range_max = scan_attributes.get('range_max', cfg_preproc['cleaning']['default_range_max'])
-                
-                ranges_col = cfg_keys['scan_columns']['ranges']
-                intensities_col = cfg_keys['scan_columns']['intensities']
-                
-                scan_df[ranges_col] = scan_df[ranges_col].apply(
-                    lambda r: np.nan_to_num(r, 
-                                            nan=cfg_preproc['cleaning']['replace_nan_with'], 
-                                            posinf=range_max, 
-                                            neginf=cfg_preproc['cleaning']['replace_neginf_with']).astype(np.float32)
-                )
-                
-                if intensities_col in scan_df.columns and scan_df[intensities_col].iloc[0] is not None:
-                     scan_df[intensities_col] = scan_df[intensities_col].apply(
-                        lambda i: np.nan_to_num(i, 
-                                                nan=cfg_preproc['cleaning']['replace_nan_with'], 
-                                                posinf=cfg_preproc['cleaning']['replace_posinf_with'], 
-                                                neginf=cfg_preproc['cleaning']['replace_neginf_with']).astype(np.float32)
-                    )
-                dataframes[scan_dset_name] = scan_df
-            else:
-                print(f"  -> Error in {input_path.name}: '{scan_dset_name}' dataset not found. Cannot proceed.")
-                return
-
-            # --- Control Commandデータの読み込み ---
-            if control_dset_name in f:
-                control_df = pd.DataFrame(f[control_dset_name][:])
-                control_df[cfg_keys['time_columns']['timestamp']] = control_df[cfg_keys['time_columns']['sec']].astype(np.int64) * 1_000_000_000 + control_df[cfg_keys['time_columns']['nanosec']].astype(np.int64)
-                dataframes[control_dset_name] = control_df
-            else:
-                print(f"  -> Error in {input_path.name}: '{control_dset_name}' dataset not found. Cannot proceed.")
-                return
-
+        with AnyReader([bag_path]) as reader:
+            duration_ns = reader.end_time - reader.start_time
+            duration_sec = duration_ns / 1_000_000_000.0
+            
+            connections = [c for c in reader.connections if c.topic in TARGET_TOPICS]
+            for conn in connections:
+                topic_msg_counts[conn.topic] = conn.msgcount
+                total_messages += conn.msgcount
     except Exception as e:
-        print(f"  -> Failed to read raw HDF5 file {input_path.name}: {e}")
+        print(f"  -> Error reading bag file: {e}. Skipping.")
         return
 
-    print(f"  [{input_path.name}] Synchronizing scan and control data...")
-    if scan_dset_name not in dataframes or control_dset_name not in dataframes:
-        print(f"  -> Missing required data in {input_path.name}. Skipping.")
+    if not total_messages:
+        print("  -> No target topics found in this bag. Skipping.")
         return
-        
-    merged_df = dataframes.pop(scan_dset_name).sort_values(cfg_keys['time_columns']['timestamp'])
-    control_df = dataframes.pop(control_dset_name)
-    
-    tolerance_ns = int(cfg_preproc['sync']['tolerance_seconds'] * 1_000_000_000)
-    
-    merged_df = pd.merge_asof(merged_df, control_df.sort_values(cfg_keys['time_columns']['timestamp']), 
-                              on=cfg_keys['time_columns']['timestamp'], direction='nearest', tolerance=tolerance_ns, 
-                              suffixes=('', cfg_preproc['sync']['merge_suffix']))
-    
-    merged_df.dropna(inplace=True)
-    merged_df.reset_index(drop=True, inplace=True)
-    
-    # === フィルタリング処理を削除 ===
-    
-    if merged_df.empty:
-        print(f"  -> No data after synchronization in {input_path.name}. Skipping file.")
-        return
-        
-    num_samples = len(merged_df)
-    
-    print(f"  [{input_path.name}] Writing {num_samples} samples to new HDF5 file...")
-    with h5py.File(output_path, 'w') as f_out:
-        vlen_float_dtype = h5py.vlen_dtype(np.float32)
-        scan_dtype = np.dtype([
-            (cfg_keys['time_columns']['sec'], 'i4'), (cfg_keys['time_columns']['nanosec'], 'u4'),
-            (cfg_keys['scan_columns']['ranges'], vlen_float_dtype),
-            (cfg_keys['scan_columns']['intensities'], vlen_float_dtype)
-        ])
-        dset_scan = f_out.create_dataset(scan_dset_name, (num_samples,), dtype=scan_dtype, **hdf5plugin.Blosc())
-        
-        for key, value in scan_attributes.items():
-            dset_scan.attrs[key] = value
-        
-        control_columns_to_write = cfg_output['control_columns_to_write']
-        dset_control = f_out.create_dataset(control_dset_name, (num_samples, len(control_columns_to_write)), dtype=np.float32, **hdf5plugin.Blosc())
 
-        scan_data_to_write = np.empty((num_samples,), dtype=scan_dtype)
-        scan_data_to_write[cfg_keys['time_columns']['sec']] = merged_df[cfg_keys['time_columns']['sec']].to_numpy(dtype='i4')
-        scan_data_to_write[cfg_keys['time_columns']['nanosec']] = merged_df[cfg_keys['time_columns']['nanosec']].to_numpy(dtype='u4')
-        scan_data_to_write[cfg_keys['scan_columns']['ranges']] = merged_df[cfg_keys['scan_columns']['ranges']].to_list()
-        scan_data_to_write[cfg_keys['scan_columns']['intensities']] = merged_df[cfg_keys['scan_columns']['intensities']].to_list()
-        
-        dset_scan[:] = scan_data_to_write
-        
-        control_data_to_write = merged_df[control_columns_to_write].to_numpy(dtype=np.float32)
-        dset_control[:] = control_data_to_write
-                
-    print(f"  -> Done processing {input_path.name}.")
+    print(f"  -> Bag duration: {duration_sec:.2f} seconds")
+    print("  -> Message counts:")
+    for topic, count in topic_msg_counts.items():
+        estimated_hz = count / duration_sec if duration_sec > 0 else 0
+        print(f"     - {topic}: {count} ({estimated_hz:.2f} Hz)")
 
+    # 2. HDF5ファイルの作成とデータセットの初期化
+    with h5py.File(output_h5_path, 'w') as f:
+        blosc_opts = get_blosc_opts()
+        datasets = {}
+
+        if CONTROL_TOPIC in topic_msg_counts:
+            dtype = np.dtype([('sec', 'i4'), ('nanosec', 'u4'), ('speed', 'f4'), ('acceleration', 'f4'), ('steering_tire_angle', 'f4'), ('steering_tire_rotation_rate', 'f4')])
+            datasets[CONTROL_TOPIC] = f.create_dataset('control_cmd', (topic_msg_counts[CONTROL_TOPIC],), dtype=dtype, **blosc_opts)
+
+        if SCAN_TOPIC in topic_msg_counts:
+            vlen_float_dtype = h5py.vlen_dtype(np.float32)
+            dtype = np.dtype([
+                ('sec', 'i4'), ('nanosec', 'u4'),
+                ('ranges', vlen_float_dtype),
+                ('intensities', vlen_float_dtype)
+            ])
+            datasets[SCAN_TOPIC] = f.create_dataset('scan', (topic_msg_counts[SCAN_TOPIC],), dtype=dtype, **blosc_opts)
+            
+            # LaserScanのメタデータをHDF5の属性として保存
+            with AnyReader([bag_path]) as reader:
+                scan_conn = next((c for c in reader.connections if c.topic == SCAN_TOPIC), None)
+                if scan_conn:
+                    _, _, rawdata = next(reader.messages(connections=[scan_conn]))
+                    msg = reader.deserialize(rawdata, scan_conn.msgtype)
+                    
+                    scan_ds = datasets[SCAN_TOPIC]
+                    scan_ds.attrs['angle_min'] = msg.angle_min
+                    scan_ds.attrs['angle_max'] = msg.angle_max
+                    scan_ds.attrs['angle_increment'] = msg.angle_increment
+                    scan_ds.attrs['time_increment'] = msg.time_increment
+                    scan_ds.attrs['scan_time'] = msg.scan_time
+                    scan_ds.attrs['range_min'] = msg.range_min
+                    scan_ds.attrs['range_max'] = msg.range_max
+                    print("  -> Saved LaserScan metadata as HDF5 attributes.")
+
+        BUFFER_SIZE = config.get('buffer_size', 1000) # configにない場合のデフォルト値
+        buffers = {topic: [] for topic in topic_msg_counts.keys()}
+        topic_indices = {topic: 0 for topic in topic_msg_counts.keys()}
+
+        def flush_buffer(topic):
+            if topic in buffers:
+                buffer_list = buffers[topic]
+                if not buffer_list: return
+                start_idx, end_idx = topic_indices[topic], topic_indices[topic] + len(buffer_list)
+                datasets[topic][start_idx:end_idx] = np.array(buffer_list, dtype=datasets[topic].dtype)
+                buffer_list.clear()
+                topic_indices[topic] = end_idx
+
+        with AnyReader([bag_path]) as reader:
+            connections_to_read = [c for c in reader.connections if c.topic in TARGET_TOPICS]
+            with tqdm(total=total_messages, desc="  -> Writing data") as pbar:
+                for connection, _, rawdata in reader.messages(connections=connections_to_read):
+                    msg = reader.deserialize(rawdata, connection.msgtype)
+                    topic = connection.topic
+
+                    if topic == CONTROL_TOPIC:
+                        s, l, a = msg.stamp, msg.longitudinal, msg.lateral
+                        buffers[topic].append((s.sec, s.nanosec, l.speed, l.acceleration, a.steering_tire_angle, a.steering_tire_rotation_rate))
+                    
+                    elif topic == SCAN_TOPIC:
+                        h = msg.header
+                        buffers[topic].append((
+                            h.stamp.sec, 
+                            h.stamp.nanosec, 
+                            np.array(msg.ranges, dtype=np.float32), 
+                            np.array(msg.intensities, dtype=np.float32)
+                        ))
+                    
+                    if len(buffers[topic]) >= BUFFER_SIZE:
+                        flush_buffer(topic)
+                    pbar.update(1)
+
+        print("\n  -> Flushing remaining buffers...")
+        for topic in buffers.keys():
+            if topic in topic_msg_counts:
+                flush_buffer(topic)
+
+    print(f"  -> Successfully created '{output_h5_path}'")
 
 if __name__ == '__main__':
-    multiprocessing.set_start_method('spawn', force=True)
-
-    parser = argparse.ArgumentParser(description='Preprocess raw HDF5 files focusing on Scan and Control data.')
-    parser.add_argument('input_dir', type=str, help='Directory containing raw HDF5 files.')
-    parser.add_argument('output_dir', type=str, help='Directory to save the preprocessed HDF5 files.')
-    parser.add_argument('--config', type=str, default='config/preprocess.yaml', help='Path to the preprocess config file.')
+    parser = argparse.ArgumentParser(description='Convert specific topics from ROS2 bags to HDF5 files.')
+    parser.add_argument('search_dir', type=str, help='Root directory to search for rosbags.')
+    parser.add_argument('output_dir', type=str, help='Directory to save the output HDF5 files.')
+    parser.add_argument('--config', type=str, default='config/extract_data.yaml', help='Path to the config file (for buffer_size).')
     args = parser.parse_args()
 
-    input_root, output_root, config_path = Path(args.input_dir), Path(args.output_dir), Path(args.config)
+    search_path = Path(args.search_dir)
+    output_path = Path(args.output_dir)
+    config_path = Path(args.config)
 
-    if not config_path.exists():
-        print(f"Error: Config file not found at {config_path}")
-        exit(1)
-
-    config = load_config(config_path)
-    output_root.mkdir(parents=True, exist_ok=True)
-
-    h5_files = sorted(list(input_root.glob('**/*.h5')))
-    if not h5_files:
-        print(f"No .h5 files found recursively in {input_root}")
+    config = {}
+    if config_path.exists():
+        config = load_config(config_path)
     else:
-        print(f"Found {len(h5_files)} files to process.")
-        
-        num_jobs = config.get('num_workers', multiprocessing.cpu_count()) 
-        print(f"Starting parallel processing with {num_jobs} jobs...")
+        print(f"Warning: Config file not found at {config_path}. Using default buffer size.")
 
-        worker_func = partial(preprocess_h5, input_root=input_root, output_root=output_root, config=config)
-        
-        with multiprocessing.Pool(processes=num_jobs) as pool:
-            list(tqdm(pool.imap_unordered(worker_func, h5_files), total=len(h5_files), desc="Overall Progress"))
+    output_path.mkdir(parents=True, exist_ok=True)
+    bag_directories = find_rosbag_directories(search_path)
+
+    if not bag_directories:
+        print("No rosbag directories found.")
+    else:
+        for bag_dir in bag_directories:
+            relative_path = bag_dir.relative_to(search_path)
+            output_h5_path = output_path / relative_path.with_suffix('.h5')
+            output_h5_path.parent.mkdir(parents=True, exist_ok=True)
             
-        print("\n--- All preprocessing finished. ---")
+            process_bag(bag_dir, output_h5_path, config)
+        print("\nAll tasks completed.")
